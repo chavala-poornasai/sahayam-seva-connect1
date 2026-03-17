@@ -1,0 +1,34 @@
+{
+  "placeholderImages": [
+    {
+      "id": "hero-bg",
+      "description": "Abstract medical technology background",
+      "imageUrl": "https://picsum.photos/seed/health1/1200/600",
+      "imageHint": "medical technology"
+    },
+    {
+      "id": "heart-model",
+      "description": "Heart anatomy visualization",
+      "imageUrl": "https://picsum.photos/seed/heart/400/300",
+      "imageHint": "human heart"
+    },
+    {
+      "id": "diabetes-analysis",
+      "description": "Glucose monitoring and health data",
+      "imageUrl": "https://picsum.photos/seed/diabetes/400/300",
+      "imageHint": "diabetes health"
+    },
+    {
+      "id": "kidney-scan",
+      "description": "Kidney medical imaging",
+      "imageUrl": "https://picsum.photos/seed/kidney/400/300",
+      "imageHint": "kidney medicine"
+    },
+    {
+      "id": "xray-sample",
+      "description": "Chest X-ray scan for pneumonia detection",
+      "imageUrl": "https://picsum.photos/seed/xray/800/600",
+      "imageHint": "chest xray"
+    }
+  ]
+}

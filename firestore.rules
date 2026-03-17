@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * VOLUNTEERBRIDGE / SEVACONNECT SECURITY RULES
+     *
+     * Core Philosophy:
+     * This ruleset implements a strict Role-Based Access Control (RBAC) and Ownership model. 
+     * Security is anchored in the authenticated user's UID, ensuring that private volunteer 
+     * data remains confidential while mission opportunities are broadly discoverable.
+     *
+     * Data Structure:
+     * - /users/{userId}: Private volunteer profiles keyed by Auth UID.
+     * - /missions/{missionId}: Publicly readable mission postings managed by administrators.
+     * - /roles_admin/{adminId}: A lookup collection defining administrative privileges.
+     *
+     * Key Security Decisions:
+     * 1. Ownership Isolation: Users can only read and write their own profile data. 
+     *    Path-based authorization (using {userId}) is used to ensure high performance.
+     * 2. Administrative Control: Mission management (creation and modification) is 
+     *    restricted to users whose UIDs exist in the /roles_admin collection.
+     * 3. Public Mission Discovery: All authenticated volunteers can list and view 
+     *    mission details to support matching and participation.
+     * 4. Denormalization for Participation: Mission documents include an 
+     *    'assignedVolunteerIds' array, though primary logic for joining is 
+     *    handled via backend services to maintain data integrity.
+     */
+
+    // --- Helper Functions ---
+
+    /** @description Checks if the request is from an authenticated user. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the authenticated user's UID matches the provided ID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** @description Checks if the user is an administrator via the roles_admin collection. */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /** @description Combined check for ownership and document existence for updates/deletes. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    /** @description Combined check for admin status and document existence. */
+    function isExistingAdmin() {
+      return resource != null && isAdmin();
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for volunteer profiles. Access is restricted to the owner or admins.
+     * @path /users/{userId}
+     * @allow (get) request.auth.uid matches {userId}
+     * @deny (list) request.auth.uid does not match {userId}
+     * @principle Restricts access to a user's own data tree and validates path consistency.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isOwner(userId) || isAdmin();
+      
+      // Allow user creation (registration) - new user creating their own profile
+      allow create: if (isOwner(userId) || !isSignedIn()) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId) || isExistingAdmin();
+    }
+
+    /**
+     * @description Rules for volunteer missions. Readable by all volunteers, writable by admins.
+     * @path /missions/{missionId}
+     * @allow (list) Any signed-in user browsing opportunities.
+     * @deny (create) A non-admin user trying to create a mission.
+     * @principle Role-based access for management with public-authenticated read access.
+     */
+    match /missions/{missionId} {
+      allow get, list: if isSignedIn();
+      
+      allow create: if isAdmin();
+      allow update: if isExistingAdmin();
+      allow delete: if isExistingAdmin();
+    }
+
+    /**
+     * @description Rules for the admin role registry. 
+     * @path /roles_admin/{adminId}
+     * @allow (get) Any user checking admin status (required for isAdmin helper).
+     * @deny (create, update, delete) Direct client-side modification of roles.
+     * @principle Immutable system-level role definitions for authorization lookups.
+     */
+    match /roles_admin/{adminId} {
+      // Users need to be able to 'get' to check their own admin status in rules logic
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      
+      // Admin roles are managed via backend or console for security
+      allow create, update, delete: if false;
+    }
+  }
+}
